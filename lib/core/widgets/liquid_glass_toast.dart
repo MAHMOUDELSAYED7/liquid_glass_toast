@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 /// Semantic type of a [LiquidGlassToast], driving its accent color and icon.
 enum ToastType { success, error, info, warning }
 
+/// Where a [LiquidGlassToast] is anchored on screen.
+enum ToastPosition { top, bottom }
+
 extension _ToastTypeStyle on ToastType {
   Color get color {
     switch (this) {
@@ -52,7 +55,9 @@ class LiquidGlassToast {
     BuildContext context, {
     required String message,
     ToastType type = ToastType.info,
+    ToastPosition position = ToastPosition.top,
     Duration duration = const Duration(seconds: 3),
+    double bottomOffset = 0,
   }) {
     final overlay = Overlay.of(context, rootOverlay: true);
 
@@ -61,7 +66,7 @@ class LiquidGlassToast {
     _currentEntry?.remove();
     _currentEntry = null;
 
-    final topInset = MediaQuery.of(context).padding.top;
+    final safePadding = MediaQuery.of(context).padding;
 
     late final OverlayEntry entry;
     entry = OverlayEntry(
@@ -69,8 +74,10 @@ class LiquidGlassToast {
         return _LiquidGlassToastCard(
           message: message,
           type: type,
+          position: position,
           duration: duration,
-          topInset: topInset,
+          topInset: safePadding.top,
+          bottomInset: safePadding.bottom + bottomOffset,
           onStateCreated: (state) => _currentState = state,
           onDismissed: () {
             entry.remove();
@@ -92,16 +99,20 @@ class _LiquidGlassToastCard extends StatefulWidget {
   const _LiquidGlassToastCard({
     required this.message,
     required this.type,
+    required this.position,
     required this.duration,
     required this.topInset,
+    required this.bottomInset,
     required this.onStateCreated,
     required this.onDismissed,
   });
 
   final String message;
   final ToastType type;
+  final ToastPosition position;
   final Duration duration;
   final double topInset;
+  final double bottomInset;
   final ValueChanged<_LiquidGlassToastCardState> onStateCreated;
   final VoidCallback onDismissed;
 
@@ -135,16 +146,18 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
       reverseDuration: _exitDuration,
     );
 
-    _slide = Tween<Offset>(
-      begin: const Offset(0, -1),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOutBack,
-        reverseCurve: Curves.easeInCubic,
-      ),
-    );
+    final fromBottom = widget.position == ToastPosition.bottom;
+    _slide =
+        Tween<Offset>(
+          begin: Offset(0, fromBottom ? 1 : -1),
+          end: Offset.zero,
+        ).animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: Curves.easeOutBack,
+            reverseCurve: Curves.easeInCubic,
+          ),
+        );
 
     _scale = Tween<double>(begin: 0.85, end: 1.0).animate(
       CurvedAnimation(
@@ -193,10 +206,15 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
     widget.onDismissed();
   }
 
+  /// +1 for a top toast (dismiss swipe is upward, i.e. negative dy), -1 for
+  /// a bottom toast (dismiss swipe is downward, i.e. positive dy).
+  double get _dismissDirection => widget.position == ToastPosition.top ? 1 : -1;
+
   void _onDragUpdate(DragUpdateDetails details) {
-    if (details.delta.dy >= 0) return;
+    final delta = details.delta.dy * _dismissDirection;
+    if (delta >= 0) return;
     setState(() {
-      _dragExtent += details.delta.dy;
+      _dragExtent += delta;
       _dragging = true;
       final progress = (1 + _dragExtent / 100).clamp(0.0, 1.0);
       _controller.value = progress;
@@ -206,10 +224,10 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
   void _onDragEnd(DragEndDetails details) {
     _dragging = false;
     const dismissThreshold = -40.0;
-    final flungUp = details.primaryVelocity != null &&
-        details.primaryVelocity! < -300;
+    final velocity = (details.primaryVelocity ?? 0) * _dismissDirection;
+    final flung = velocity < -300;
 
-    if (_dragExtent < dismissThreshold || flungUp) {
+    if (_dragExtent < dismissThreshold || flung) {
       dismiss();
     } else {
       _controller.forward();
@@ -226,9 +244,11 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
   @override
   Widget build(BuildContext context) {
     final accentColor = widget.type.color;
+    final isTop = widget.position == ToastPosition.top;
 
     return Positioned(
-      top: widget.topInset + 12,
+      top: isTop ? widget.topInset + 16 : null,
+      bottom: isTop ? null : widget.bottomInset + 28,
       left: 16,
       right: 16,
       child: SafeArea(
@@ -247,7 +267,9 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
                   offset: Offset(0, _slide.value.dy * 60),
                   child: Transform.scale(
                     scale: _scale.value,
-                    alignment: Alignment.topCenter,
+                    alignment: isTop
+                        ? Alignment.topCenter
+                        : Alignment.bottomCenter,
                     child: child,
                   ),
                 ),
@@ -281,91 +303,91 @@ class _GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withValues(alpha: 0.25),
-                Colors.white.withValues(alpha: 0.08),
-              ],
-            ),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.3),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: accentColor.withValues(alpha: 0.25),
-                blurRadius: 20,
-                spreadRadius: -4,
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              // Top-edge highlight to simulate a glass reflection.
-              Positioned(
-                top: 0,
-                left: 12,
-                right: 12,
-                child: Container(
-                  height: 1,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(1),
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withValues(alpha: 0.0),
-                        Colors.white.withValues(alpha: 0.4),
-                        Colors.white.withValues(alpha: 0.0),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  ScaleTransition(
-                    scale: iconScale,
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: accentColor.withValues(alpha: 0.2),
-                      ),
-                      child: Icon(icon, color: accentColor, size: 20),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      message,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
+    return Material(
+      type: MaterialType.transparency,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withValues(alpha: 0.25),
+                  Colors.white.withValues(alpha: 0.08),
                 ],
               ),
-            ],
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.3),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: accentColor.withValues(alpha: 0.25),
+                  blurRadius: 20,
+                  spreadRadius: -4,
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                ScaleTransition(
+                  scale: iconScale,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: accentColor.withValues(alpha: 0.2),
+                    ),
+                    child: Icon(icon, color: accentColor, size: 20),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        message,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 6),
+                      // Under-text highlight to simulate a glass reflection.
+                      Container(
+                        height: 1,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(1),
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withValues(alpha: 0.4),
+                              Colors.white.withValues(alpha: 0.0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
