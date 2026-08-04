@@ -131,6 +131,7 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
   late final Animation<double> _scale;
   late final Animation<double> _fade;
   late final Animation<double> _iconScale;
+  late final Animation<double> _glow;
 
   double _dragExtent = 0;
   bool _dragging = false;
@@ -159,10 +160,21 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
           ),
         );
 
-    _scale = Tween<double>(begin: 0.85, end: 1.0).animate(
+    // Deliberately NOT easeOutBack: that curve overshoots past 1.0, and
+    // since this scales the whole card (glass tint, border, shadow
+    // together) the overshoot reads as the card flashing brighter/bigger
+    // before settling down. easeOutCubic reaches 1.0 and stops there.
+    //
+    // The range is kept narrow (0.96–1.0, not 0.85–1.0): BackdropFilter's
+    // blur sigma is fixed in pixels, so scaling the card also scales how
+    // strong that blur reads visually — a wide range made the glass look
+    // like it blurred harder at the start of the entrance. A narrow range
+    // keeps that shift small enough to be imperceptible while still giving
+    // a soft "settle" feel.
+    _scale = Tween<double>(begin:0.8, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: Curves.easeOutBack,
+        curve: Curves.easeOutCubic,
         reverseCurve: Curves.easeInCubic,
       ),
     );
@@ -173,6 +185,15 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
         curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
         reverseCurve: Curves.easeIn,
       ),
+    );
+
+    // The glow tracks the FULL animation span (no Interval cutoff) so it
+    // reaches full strength exactly when the card finishes settling —
+    // never before, which is what read as a premature flash/fade.
+    _glow = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+      reverseCurve: Curves.easeIn,
     );
 
     // Icon "pop": starts a beat after the card begins settling, then
@@ -280,6 +301,7 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
               accentColor: accentColor,
               icon: widget.type.icon,
               iconScale: _iconScale,
+              glowStrength: _glow,
             ),
           ),
         ),
@@ -294,6 +316,7 @@ class _GlassCard extends StatelessWidget {
     required this.accentColor,
     required this.icon,
     required this.iconScale,
+    required this.glowStrength,
   });
 
   final String message;
@@ -301,93 +324,146 @@ class _GlassCard extends StatelessWidget {
   final IconData icon;
   final Animation<double> iconScale;
 
+  /// Drives the shadow opacities in lockstep with the card's own fade, so
+  /// the colored glow eases in with everything else instead of snapping to
+  /// full strength on the very first frame.
+  final Animation<double> glowStrength;
+
   @override
   Widget build(BuildContext context) {
-    return Material(
-      type: MaterialType.transparency,
+    return AnimatedBuilder(
+      animation: glowStrength,
+      builder: (context, child) {
+        final strength = glowStrength.value.clamp(0.0, 1.0);
+        return Material(
+          type: MaterialType.transparency,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: accentColor.withValues(alpha: 0.3 * strength),
+                  blurRadius: 24,
+                  spreadRadius: -6,
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25 * strength),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: child,
+          ),
+        );
+      },
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: 0.25),
-                  Colors.white.withValues(alpha: 0.08),
-                ],
-              ),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.3),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: accentColor.withValues(alpha: 0.25),
-                  blurRadius: 20,
-                  spreadRadius: -4,
+          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+          child: Stack(
+            children: [
+              // Base glass tint — kept light so the blurred background
+              // actually shows through (a heavier tint just looks like a
+              // frosted-white card, not glass over real content).
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.01),
+                  ),
                 ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                ScaleTransition(
-                  scale: iconScale,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accentColor.withValues(alpha: 0.2),
+              ),
+              // Diagonal sheen: a soft light pass across the glass to
+              // suggest refraction rather than a flat tint. Kept subtle —
+              // a brighter sheen reads as a flash while the card is still
+              // fading in, since it's a much larger fraction of the still-low
+              // overall opacity than it is once the card is fully visible.
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.14),
+                        Colors.white.withValues(alpha: 0.0),
+                        Colors.white.withValues(alpha: 0.05),
+                      ],
+                      stops: const [0.0, 0.5, 1.0],
                     ),
-                    child: Icon(icon, color: accentColor, size: 20),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        message,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 6),
-                      // Under-text highlight to simulate a glass reflection.
-                      Container(
-                        height: 1,
+              ),
+              // Full specular border wrapping the glass edge.
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.45),
+                      width: 1.2,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    ScaleTransition(
+                      scale: iconScale,
+                      child: Container(
+                        width: 36,
+                        height: 36,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(1),
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.white.withValues(alpha: 0.4),
-                              Colors.white.withValues(alpha: 0.0),
-                            ],
-                          ),
+                          shape: BoxShape.circle,
+                          color: accentColor.withValues(alpha: 0.2),
                         ),
+                        child: Icon(icon, color: accentColor, size: 20),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            message,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 6),
+                          // Under-text highlight to simulate a glass
+                          // reflection.
+                          Container(
+                            height: 1,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(1),
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.4),
+                                  Colors.white.withValues(alpha: 0.0),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
