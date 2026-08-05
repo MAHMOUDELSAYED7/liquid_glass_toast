@@ -9,6 +9,8 @@ void main() {
     const LiquidGlassToastTheme(
       success: ToastTypeTheme(
         icon: Icons.thumb_up_rounded,
+        iconColor: Colors.white,
+        iconSize: 22,
       ),
       error: ToastTypeTheme(icon: Icons.dangerous_rounded),
       textStyle: TextStyle(fontStyle: FontStyle.italic),
@@ -115,6 +117,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     type: ToastType.info,
                     color: Colors.purpleAccent,
                     icon: Icons.star_rounded,
+                    iconColor: Colors.white,
+                    iconSize: 24,
                   ),
                   child: const Text('Custom color/icon'),
                 ),
