@@ -11,6 +11,7 @@ void main() {
         icon: Icons.thumb_up_rounded,
       ),
       error: ToastTypeTheme(icon: Icons.dangerous_rounded),
+      textStyle: TextStyle(fontStyle: FontStyle.italic),
     ),
   );
 
@@ -24,7 +25,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Demo',
-      theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
+      theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.blue)),
       home: const MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
@@ -106,6 +107,16 @@ class _MyHomePageState extends State<MyHomePage> {
                     position: ToastPosition.top,
                   ),
                   child: const Text('long message'),
+                ),
+                ElevatedButton(
+                  onPressed: () => LiquidGlassToast.show(
+                    context,
+                    message: 'Custom color and icon for this toast only.',
+                    type: ToastType.info,
+                    color: Colors.purpleAccent,
+                    icon: Icons.star_rounded,
+                  ),
+                  child: const Text('Custom color/icon'),
                 ),
               ],
             ),

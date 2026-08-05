@@ -35,12 +35,19 @@ class LiquidGlassToastTheme {
     this.error,
     this.info,
     this.warning,
+    this.textStyle,
   });
 
   final ToastTypeTheme? success;
   final ToastTypeTheme? error;
   final ToastTypeTheme? info;
   final ToastTypeTheme? warning;
+
+  /// Base text style applied to every toast's message, regardless of type.
+  /// Merged under each type's [ToastTypeTheme.textColor] (or the default
+  /// white), so setting a color here is overridden by a per-type
+  /// [ToastTypeTheme.textColor] when both are set.
+  final TextStyle? textStyle;
 
   ToastTypeTheme? _forType(ToastType type) {
     switch (type) {
@@ -83,14 +90,23 @@ extension _ToastTypeStyle on ToastType {
     }
   }
 
-  Color get color =>
-      LiquidGlassToast._theme?._forType(this)?.color ?? _defaultColor;
+  Color resolveColor(Color? override) =>
+      override ??
+      LiquidGlassToast._theme?._forType(this)?.color ??
+      _defaultColor;
 
-  IconData get icon =>
-      LiquidGlassToast._theme?._forType(this)?.icon ?? _defaultIcon;
+  IconData resolveIcon(IconData? override) =>
+      override ??
+      LiquidGlassToast._theme?._forType(this)?.icon ??
+      _defaultIcon;
 
-  Color get textColor =>
-      LiquidGlassToast._theme?._forType(this)?.textColor ?? Colors.white;
+  TextStyle get textStyle {
+    final theme = LiquidGlassToast._theme;
+    final base = theme?.textStyle ?? const TextStyle();
+    return base.copyWith(
+      color: theme?._forType(this)?.textColor ?? base.color ?? Colors.white,
+    );
+  }
 }
 
 /// A reusable "liquid glass" style toast, presented as a floating top
@@ -138,6 +154,10 @@ class LiquidGlassToast {
   /// [duration] defaults to an estimate based on [message]'s length (longer
   /// messages stay on screen longer), clamped between [_minDuration] and
   /// [_maxDuration]. Pass an explicit [duration] to override this.
+  ///
+  /// [color] and [icon] override the accent color and icon for this single
+  /// toast, taking precedence over both the type's built-in default and any
+  /// [configure]d theme.
   static void show(
     BuildContext context, {
     required String message,
@@ -145,6 +165,8 @@ class LiquidGlassToast {
     ToastPosition position = ToastPosition.bottom,
     Duration? duration,
     double bottomOffset = 0,
+    Color? color,
+    IconData? icon,
   }) {
     final overlay = Overlay.of(context, rootOverlay: true);
 
@@ -161,6 +183,8 @@ class LiquidGlassToast {
         return _LiquidGlassToastCard(
           message: message,
           type: type,
+          color: color,
+          icon: icon,
           position: position,
           duration: duration ?? _durationFor(message),
           topInset: safePadding.top,
@@ -186,6 +210,8 @@ class _LiquidGlassToastCard extends StatefulWidget {
   const _LiquidGlassToastCard({
     required this.message,
     required this.type,
+    this.color,
+    this.icon,
     required this.position,
     required this.duration,
     required this.topInset,
@@ -196,6 +222,8 @@ class _LiquidGlassToastCard extends StatefulWidget {
 
   final String message;
   final ToastType type;
+  final Color? color;
+  final IconData? icon;
   final ToastPosition position;
   final Duration duration;
   final double topInset;
@@ -351,7 +379,7 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = widget.type.color;
+    final accentColor = widget.type.resolveColor(widget.color);
     final isTop = widget.position == ToastPosition.top;
 
     return Positioned(
@@ -386,8 +414,8 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
             child: _GlassCard(
               message: widget.message,
               accentColor: accentColor,
-              textColor: widget.type.textColor,
-              icon: widget.type.icon,
+              textStyle: widget.type.textStyle,
+              icon: widget.type.resolveIcon(widget.icon),
               iconScale: _iconScale,
               glowStrength: _glow,
             ),
@@ -402,7 +430,7 @@ class _GlassCard extends StatelessWidget {
   const _GlassCard({
     required this.message,
     required this.accentColor,
-    required this.textColor,
+    required this.textStyle,
     required this.icon,
     required this.iconScale,
     required this.glowStrength,
@@ -410,7 +438,7 @@ class _GlassCard extends StatelessWidget {
 
   final String message;
   final Color accentColor;
-  final Color textColor;
+  final TextStyle textStyle;
   final IconData icon;
   final Animation<double> iconScale;
 
@@ -524,11 +552,10 @@ class _GlassCard extends StatelessWidget {
                         children: [
                           Text(
                             message,
-                            style: TextStyle(
-                              color: textColor,
+                            style: const TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
-                            ),
+                            ).merge(textStyle),
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
                           ),
