@@ -439,12 +439,11 @@ class _GlassCard extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
                             ),
-                            maxLines: 2,
+                            maxLines: 3,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 6),
-                          // Under-text highlight to simulate a glass
-                          // reflection.
+
                           Container(
                             height: 1,
                             decoration: BoxDecoration(
