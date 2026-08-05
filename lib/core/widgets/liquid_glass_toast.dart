@@ -47,16 +47,36 @@ class LiquidGlassToast {
   static OverlayEntry? _currentEntry;
   static _LiquidGlassToastCardState? _currentState;
 
+  static const _minDuration = Duration(seconds: 2);
+  static const _maxDuration = Duration(seconds: 7);
+  static const _baseDuration = Duration(seconds: 2);
+
+  /// ~200 words per minute reading speed → ~65ms per character.
+  static const _perCharacter = Duration(milliseconds: 65);
+
+  /// Estimates a readable display duration from [message]'s length,
+  /// clamped between [_minDuration] and [_maxDuration].
+  static Duration _durationFor(String message) {
+    final estimated = _baseDuration + _perCharacter * message.length;
+    if (estimated < _minDuration) return _minDuration;
+    if (estimated > _maxDuration) return _maxDuration;
+    return estimated;
+  }
+
   /// Shows a toast over everything currently on screen.
   ///
   /// If a toast is already visible, it is dismissed immediately and replaced
   /// by the new one.
+  ///
+  /// [duration] defaults to an estimate based on [message]'s length (longer
+  /// messages stay on screen longer), clamped between [_minDuration] and
+  /// [_maxDuration]. Pass an explicit [duration] to override this.
   static void show(
     BuildContext context, {
     required String message,
     ToastType type = ToastType.info,
-    ToastPosition position = ToastPosition.top,
-    Duration duration = const Duration(seconds: 3),
+    ToastPosition position = ToastPosition.bottom,
+    Duration? duration,
     double bottomOffset = 0,
   }) {
     final overlay = Overlay.of(context, rootOverlay: true);
@@ -75,7 +95,7 @@ class LiquidGlassToast {
           message: message,
           type: type,
           position: position,
-          duration: duration,
+          duration: duration ?? _durationFor(message),
           topInset: safePadding.top,
           bottomInset: safePadding.bottom + bottomOffset,
           onStateCreated: (state) => _currentState = state,
