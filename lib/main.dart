@@ -3,6 +3,17 @@ import 'package:flutter/material.dart';
 import 'core/widgets/liquid_glass_toast.dart';
 
 void main() {
+  // Optional: customize the toast look once, app-wide. Any type or field
+  // left out keeps the built-in default.
+  LiquidGlassToast.configure(
+    const LiquidGlassToastTheme(
+      success: ToastTypeTheme(
+        icon: Icons.thumb_up_rounded,
+      ),
+      error: ToastTypeTheme(icon: Icons.dangerous_rounded),
+    ),
+  );
+
   runApp(const MyApp());
 }
 

@@ -8,8 +8,56 @@ enum ToastType { success, error, info, warning }
 /// Where a [LiquidGlassToast] is anchored on screen.
 enum ToastPosition { top, bottom }
 
+/// Per-[ToastType] styling override. Every field is optional — leave a
+/// field `null` to keep the built-in default for that field.
+class ToastTypeTheme {
+  const ToastTypeTheme({this.color, this.icon, this.textColor});
+
+  /// Accent color used for the icon badge, message glow and shadow.
+  final Color? color;
+
+  /// Icon shown in the leading badge.
+  final IconData? icon;
+
+  /// Color of the message text. Defaults to white.
+  final Color? textColor;
+}
+
+/// Global, app-wide styling for [LiquidGlassToast].
+///
+/// Set once via [LiquidGlassToast.configure] before showing any toast
+/// (typically right before `runApp`). Any [ToastType] left unconfigured — or
+/// any field left `null` within a [ToastTypeTheme] — keeps the built-in
+/// default look.
+class LiquidGlassToastTheme {
+  const LiquidGlassToastTheme({
+    this.success,
+    this.error,
+    this.info,
+    this.warning,
+  });
+
+  final ToastTypeTheme? success;
+  final ToastTypeTheme? error;
+  final ToastTypeTheme? info;
+  final ToastTypeTheme? warning;
+
+  ToastTypeTheme? _forType(ToastType type) {
+    switch (type) {
+      case ToastType.success:
+        return success;
+      case ToastType.error:
+        return error;
+      case ToastType.info:
+        return info;
+      case ToastType.warning:
+        return warning;
+    }
+  }
+}
+
 extension _ToastTypeStyle on ToastType {
-  Color get color {
+  Color get _defaultColor {
     switch (this) {
       case ToastType.success:
         return const Color(0xFF34D399);
@@ -22,7 +70,7 @@ extension _ToastTypeStyle on ToastType {
     }
   }
 
-  IconData get icon {
+  IconData get _defaultIcon {
     switch (this) {
       case ToastType.success:
         return Icons.check_circle_rounded;
@@ -34,6 +82,15 @@ extension _ToastTypeStyle on ToastType {
         return Icons.info_rounded;
     }
   }
+
+  Color get color =>
+      LiquidGlassToast._theme?._forType(this)?.color ?? _defaultColor;
+
+  IconData get icon =>
+      LiquidGlassToast._theme?._forType(this)?.icon ?? _defaultIcon;
+
+  Color get textColor =>
+      LiquidGlassToast._theme?._forType(this)?.textColor ?? Colors.white;
 }
 
 /// A reusable "liquid glass" style toast, presented as a floating top
@@ -46,10 +103,20 @@ class LiquidGlassToast {
 
   static OverlayEntry? _currentEntry;
   static _LiquidGlassToastCardState? _currentState;
+  static LiquidGlassToastTheme? _theme;
 
   static const _minDuration = Duration(seconds: 2);
   static const _maxDuration = Duration(seconds: 7);
   static const _baseDuration = Duration(seconds: 2);
+
+  /// Sets the app-wide look for every toast shown afterwards.
+  ///
+  /// Call this once, typically right before `runApp`. Any [ToastType] left
+  /// unconfigured — or any field left `null` within a [ToastTypeTheme] —
+  /// keeps the built-in default.
+  static void configure(LiquidGlassToastTheme theme) {
+    _theme = theme;
+  }
 
   /// ~200 words per minute reading speed → ~65ms per character.
   static const _perCharacter = Duration(milliseconds: 65);
@@ -319,6 +386,7 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
             child: _GlassCard(
               message: widget.message,
               accentColor: accentColor,
+              textColor: widget.type.textColor,
               icon: widget.type.icon,
               iconScale: _iconScale,
               glowStrength: _glow,
@@ -334,6 +402,7 @@ class _GlassCard extends StatelessWidget {
   const _GlassCard({
     required this.message,
     required this.accentColor,
+    required this.textColor,
     required this.icon,
     required this.iconScale,
     required this.glowStrength,
@@ -341,6 +410,7 @@ class _GlassCard extends StatelessWidget {
 
   final String message;
   final Color accentColor;
+  final Color textColor;
   final IconData icon;
   final Animation<double> iconScale;
 
@@ -454,8 +524,8 @@ class _GlassCard extends StatelessWidget {
                         children: [
                           Text(
                             message,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: textColor,
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
                             ),
