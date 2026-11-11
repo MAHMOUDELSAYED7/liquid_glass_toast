@@ -2,33 +2,46 @@ import 'package:flutter/material.dart';
 
 import 'core/widgets/liquid_glass_toast.dart';
 
-void main() {
-  // Optional: customize the toast look once, app-wide. Any type or field
-  // left out keeps the built-in default.
-  LiquidGlassToast.configure(
-    const LiquidGlassToastTheme(
-      success: ToastTypeTheme(
-        icon: Icons.thumb_up_rounded,
-        iconColor: Colors.white,
-        iconSize: 22,
-      ),
-      error: ToastTypeTheme(icon: Icons.dangerous_rounded),
-      textStyle: TextStyle(fontStyle: FontStyle.italic),
-    ),
-  );
-
-  runApp(const MyApp());
-}
+void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.blue)),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+    return LiquidGlassToastScope(
+      theme: const LiquidGlassToastTheme(
+        textStyle: TextStyle(fontStyle: FontStyle.italic),
+        position: ToastPosition.bottom,
+        // Spacing / sizing, all in logical pixels.
+        topOffset: 16,
+        bottomOffset: 110,
+        horizontalMargin: 16,
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        borderRadius: 24,
+        iconBadgeSize: 36,
+        iconSpacing: 12,
+        success: ToastTypeTheme(
+          icon: Icons.thumb_up_rounded,
+          iconColor: Colors.white,
+          iconSize: 22,
+          duration: Duration(seconds: 2),
+        ),
+        error: ToastTypeTheme(
+          icon: Icons.dangerous_rounded,
+          duration: Duration(seconds: 5),
+        ),
+        warning: ToastTypeTheme(
+          duration: Duration(seconds: 4),
+          position: ToastPosition.top,
+        ),
+        info: ToastTypeTheme(position: ToastPosition.top),
+      ),
+      child: MaterialApp(
+        title: 'Flutter Demo',
+        theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.blue)),
+        home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      ),
     );
   }
 }

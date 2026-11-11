@@ -17,6 +17,8 @@ class ToastTypeTheme {
     this.textColor,
     this.iconColor,
     this.iconSize,
+    this.duration,
+    this.position,
   });
 
   /// Accent color used for the icon badge, message glow and shadow.
@@ -33,6 +35,14 @@ class ToastTypeTheme {
 
   /// Size of the icon itself. Defaults to `20`.
   final double? iconSize;
+
+  /// How long this type of toast stays on screen. Defaults to an estimate
+  /// based on the message length.
+  final Duration? duration;
+
+  /// Where this type of toast is anchored. Defaults to
+  /// [LiquidGlassToastTheme.position], then [ToastPosition.bottom].
+  final ToastPosition? position;
 }
 
 /// Global, app-wide styling for [LiquidGlassToast].
@@ -48,6 +58,14 @@ class LiquidGlassToastTheme {
     this.info,
     this.warning,
     this.textStyle,
+    this.position,
+    this.topOffset,
+    this.bottomOffset,
+    this.horizontalMargin,
+    this.padding,
+    this.borderRadius,
+    this.iconBadgeSize,
+    this.iconSpacing,
   });
 
   final ToastTypeTheme? success;
@@ -60,6 +78,35 @@ class LiquidGlassToastTheme {
   /// white), so setting a color here is overridden by a per-type
   /// [ToastTypeTheme.textColor] when both are set.
   final TextStyle? textStyle;
+
+  /// Default position for every toast type that doesn't set its own
+  /// [ToastTypeTheme.position].
+  final ToastPosition? position;
+
+  /// Distance in logical pixels from the top edge (below the safe area) for
+  /// top toasts. Defaults to `16`.
+  final double? topOffset;
+
+  /// Distance in logical pixels from the bottom edge (above the safe area)
+  /// for bottom toasts. Defaults to `110`.
+  final double? bottomOffset;
+
+  /// Gap in pixels between the toast and the left/right screen edges.
+  /// Defaults to `16`.
+  final double? horizontalMargin;
+
+  /// Inner padding of the toast card. Defaults to
+  /// `EdgeInsets.symmetric(horizontal: 16, vertical: 14)`.
+  final EdgeInsets? padding;
+
+  /// Corner radius of the toast card. Defaults to `24`.
+  final double? borderRadius;
+
+  /// Diameter of the circular icon badge. Defaults to `36`.
+  final double? iconBadgeSize;
+
+  /// Gap in pixels between the icon badge and the message. Defaults to `12`.
+  final double? iconSpacing;
 
   ToastTypeTheme? _forType(ToastType type) {
     switch (type) {
@@ -108,9 +155,7 @@ extension _ToastTypeStyle on ToastType {
       _defaultColor;
 
   IconData resolveIcon(IconData? override) =>
-      override ??
-      LiquidGlassToast._theme?._forType(this)?.icon ??
-      _defaultIcon;
+      override ?? LiquidGlassToast._theme?._forType(this)?.icon ?? _defaultIcon;
 
   Color resolveIconColor(Color? override, Color accentColor) =>
       override ??
@@ -120,6 +165,15 @@ extension _ToastTypeStyle on ToastType {
   double resolveIconSize(double? override) =>
       override ?? LiquidGlassToast._theme?._forType(this)?.iconSize ?? 20;
 
+  Duration? resolveDuration(Duration? override) =>
+      override ?? LiquidGlassToast._theme?._forType(this)?.duration;
+
+  ToastPosition resolvePosition(ToastPosition? override) =>
+      override ??
+      LiquidGlassToast._theme?._forType(this)?.position ??
+      LiquidGlassToast._theme?.position ??
+      ToastPosition.bottom;
+
   TextStyle get textStyle {
     final theme = LiquidGlassToast._theme;
     final base = theme?.textStyle ?? const TextStyle();
@@ -127,6 +181,50 @@ extension _ToastTypeStyle on ToastType {
       color: theme?._forType(this)?.textColor ?? base.color ?? Colors.white,
     );
   }
+}
+
+/// Wraps the app (put it around / above `MaterialApp`) and applies one
+/// central [LiquidGlassToastTheme] — colors, icons, text styles, durations
+/// and positions for every [ToastType] — so no `main()` setup is needed.
+///
+/// ```dart
+/// LiquidGlassToastScope(
+///   theme: LiquidGlassToastTheme(
+///     success: ToastTypeTheme(color: Colors.green, duration: Duration(seconds: 2)),
+///     error: ToastTypeTheme(color: Colors.red, duration: Duration(seconds: 5)),
+///   ),
+///   child: MaterialApp(...),
+/// )
+/// ```
+class LiquidGlassToastScope extends StatefulWidget {
+  const LiquidGlassToastScope({
+    super.key,
+    required this.theme,
+    required this.child,
+  });
+
+  final LiquidGlassToastTheme theme;
+  final Widget child;
+
+  @override
+  State<LiquidGlassToastScope> createState() => _LiquidGlassToastScopeState();
+}
+
+class _LiquidGlassToastScopeState extends State<LiquidGlassToastScope> {
+  @override
+  void initState() {
+    super.initState();
+    LiquidGlassToast.configure(widget.theme);
+  }
+
+  @override
+  void didUpdateWidget(LiquidGlassToastScope oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    LiquidGlassToast.configure(widget.theme);
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// A reusable "liquid glass" style toast, presented as a floating top
@@ -183,7 +281,7 @@ class LiquidGlassToast {
     BuildContext context, {
     required String message,
     ToastType type = ToastType.info,
-    ToastPosition position = ToastPosition.bottom,
+    ToastPosition? position,
     Duration? duration,
     double bottomOffset = 0,
     Color? color,
@@ -193,10 +291,15 @@ class LiquidGlassToast {
   }) {
     final overlay = Overlay.of(context, rootOverlay: true);
 
-    // Replace any toast that's already showing.
+    // Replace any toast that's already showing. dismiss() animates out and
+    // removes the entry itself (via onDismissed) — removing it again here
+    // would double-remove the same OverlayEntry and hit its assertion.
     _currentState?.dismiss();
-    _currentEntry?.remove();
     _currentEntry = null;
+    _currentState = null;
+
+    final resolvedPosition = type.resolvePosition(position);
+    final resolvedDuration = type.resolveDuration(duration);
 
     final safePadding = MediaQuery.of(context).padding;
 
@@ -210,8 +313,8 @@ class LiquidGlassToast {
           icon: icon,
           iconColor: iconColor,
           iconSize: iconSize,
-          position: position,
-          duration: duration ?? _durationFor(message),
+          position: resolvedPosition,
+          duration: resolvedDuration ?? _durationFor(message),
           topInset: safePadding.top,
           bottomInset: safePadding.bottom + bottomOffset,
           onStateCreated: (state) => _currentState = state,
@@ -315,7 +418,7 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
     // like it blurred harder at the start of the entrance. A narrow range
     // keeps that shift small enough to be imperceptible while still giving
     // a soft "settle" feel.
-    _scale = Tween<double>(begin:0.8, end: 1.0).animate(
+    _scale = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
         curve: Curves.easeOutCubic,
@@ -410,12 +513,14 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
   Widget build(BuildContext context) {
     final accentColor = widget.type.resolveColor(widget.color);
     final isTop = widget.position == ToastPosition.top;
+    final theme = LiquidGlassToast._theme;
+    final margin = theme?.horizontalMargin ?? 16;
 
     return Positioned(
-      top: isTop ? widget.topInset + 16 : null,
-      bottom: isTop ? null : widget.bottomInset + 28,
-      left: 16,
-      right: 16,
+      top: isTop ? widget.topInset + (theme?.topOffset ?? 16) : null,
+      bottom: isTop ? null : widget.bottomInset + (theme?.bottomOffset ?? 110),
+      left: margin,
+      right: margin,
       child: SafeArea(
         top: false,
         bottom: false,
@@ -487,6 +592,14 @@ class _GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = LiquidGlassToast._theme;
+    final radius = theme?.borderRadius ?? 24;
+    final badgeSize = theme?.iconBadgeSize ?? 36;
+    final padding =
+        theme?.padding ??
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 14);
+    final iconSpacing = theme?.iconSpacing ?? 12;
+
     return AnimatedBuilder(
       animation: glowStrength,
       builder: (context, child) {
@@ -495,7 +608,7 @@ class _GlassCard extends StatelessWidget {
           type: MaterialType.transparency,
           child: Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(radius),
               boxShadow: [
                 BoxShadow(
                   color: accentColor.withValues(alpha: 0.3 * strength),
@@ -514,7 +627,7 @@ class _GlassCard extends StatelessWidget {
         );
       },
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(radius),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
           child: Stack(
@@ -554,7 +667,7 @@ class _GlassCard extends StatelessWidget {
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(radius),
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.45),
                       width: 1.2,
@@ -563,18 +676,15 @@ class _GlassCard extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
+                padding: padding,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     ScaleTransition(
                       scale: iconScale,
                       child: Container(
-                        width: 36,
-                        height: 36,
+                        width: badgeSize,
+                        height: badgeSize,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: accentColor.withValues(alpha: 0.2),
@@ -582,7 +692,7 @@ class _GlassCard extends StatelessWidget {
                         child: Icon(icon, color: iconColor, size: iconSize),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: iconSpacing),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
