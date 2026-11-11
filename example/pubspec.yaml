@@ -1,0 +1,19 @@
+name: liquid_glass_toast_example
+description: Example app demonstrating the liquid_glass_toast package.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  liquid_glass_toast:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

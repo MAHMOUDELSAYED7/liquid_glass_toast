@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'core/widgets/liquid_glass_toast.dart';
+import 'package:liquid_glass_toast/liquid_glass_toast.dart';
 
 void main() => runApp(const MyApp());
 
@@ -39,7 +39,8 @@ class MyApp extends StatelessWidget {
       ),
       child: MaterialApp(
         title: 'Flutter Demo',
-        theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.blue)),
+        theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue)),
         home: const MyHomePage(title: 'Flutter Demo Home Page'),
       ),
     );
@@ -60,10 +61,9 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       appBar: AppBar(backgroundColor: Colors.black, title: Text(widget.title)),
       backgroundColor: Colors.black,
-
       body: Center(
         child: Column(
-          mainAxisAlignment: .center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Wrap(
               spacing: 12,

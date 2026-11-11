@@ -3,14 +3,33 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 /// Semantic type of a [LiquidGlassToast], driving its accent color and icon.
-enum ToastType { success, error, info, warning }
+enum ToastType {
+  /// A positive outcome, e.g. "Saved successfully".
+  success,
+
+  /// A failure, e.g. "Something went wrong".
+  error,
+
+  /// Neutral information.
+  info,
+
+  /// A cautionary message.
+  warning,
+}
 
 /// Where a [LiquidGlassToast] is anchored on screen.
-enum ToastPosition { top, bottom }
+enum ToastPosition {
+  /// Anchored to the top of the screen, below the safe area.
+  top,
+
+  /// Anchored to the bottom of the screen, above the safe area.
+  bottom,
+}
 
 /// Per-[ToastType] styling override. Every field is optional — leave a
 /// field `null` to keep the built-in default for that field.
 class ToastTypeTheme {
+  /// Creates a per-type style override. All fields are optional.
   const ToastTypeTheme({
     this.color,
     this.icon,
@@ -52,6 +71,7 @@ class ToastTypeTheme {
 /// any field left `null` within a [ToastTypeTheme] — keeps the built-in
 /// default look.
 class LiquidGlassToastTheme {
+  /// Creates the app-wide toast theme. All fields are optional.
   const LiquidGlassToastTheme({
     this.success,
     this.error,
@@ -68,9 +88,16 @@ class LiquidGlassToastTheme {
     this.iconSpacing,
   });
 
+  /// Style overrides for [ToastType.success] toasts.
   final ToastTypeTheme? success;
+
+  /// Style overrides for [ToastType.error] toasts.
   final ToastTypeTheme? error;
+
+  /// Style overrides for [ToastType.info] toasts.
   final ToastTypeTheme? info;
+
+  /// Style overrides for [ToastType.warning] toasts.
   final ToastTypeTheme? warning;
 
   /// Base text style applied to every toast's message, regardless of type.
@@ -197,13 +224,17 @@ extension _ToastTypeStyle on ToastType {
 /// )
 /// ```
 class LiquidGlassToastScope extends StatefulWidget {
+  /// Creates a scope that applies [theme] to every toast shown beneath it.
   const LiquidGlassToastScope({
     super.key,
     required this.theme,
     required this.child,
   });
 
+  /// The theme applied to every toast.
   final LiquidGlassToastTheme theme;
+
+  /// The widget below this scope, usually a `MaterialApp`.
   final Widget child;
 
   @override
@@ -395,17 +426,16 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
     );
 
     final fromBottom = widget.position == ToastPosition.bottom;
-    _slide =
-        Tween<Offset>(
-          begin: Offset(0, fromBottom ? 1 : -1),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(
-            parent: _controller,
-            curve: Curves.easeOutBack,
-            reverseCurve: Curves.easeInCubic,
-          ),
-        );
+    _slide = Tween<Offset>(
+      begin: Offset(0, fromBottom ? 1 : -1),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOutBack,
+        reverseCurve: Curves.easeInCubic,
+      ),
+    );
 
     // Deliberately NOT easeOutBack: that curve overshoots past 1.0, and
     // since this scales the whole card (glass tint, border, shadow
@@ -537,9 +567,8 @@ class _LiquidGlassToastCardState extends State<_LiquidGlassToastCard>
                   offset: Offset(0, _slide.value.dy * 60),
                   child: Transform.scale(
                     scale: _scale.value,
-                    alignment: isTop
-                        ? Alignment.topCenter
-                        : Alignment.bottomCenter,
+                    alignment:
+                        isTop ? Alignment.topCenter : Alignment.bottomCenter,
                     child: child,
                   ),
                 ),
@@ -595,8 +624,7 @@ class _GlassCard extends StatelessWidget {
     final theme = LiquidGlassToast._theme;
     final radius = theme?.borderRadius ?? 24;
     final badgeSize = theme?.iconBadgeSize ?? 36;
-    final padding =
-        theme?.padding ??
+    final padding = theme?.padding ??
         const EdgeInsets.symmetric(horizontal: 16, vertical: 14);
     final iconSpacing = theme?.iconSpacing ?? 12;
 
@@ -708,7 +736,6 @@ class _GlassCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 6),
-
                           Container(
                             height: 1,
                             decoration: BoxDecoration(
